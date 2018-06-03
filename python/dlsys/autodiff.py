@@ -335,7 +335,7 @@ class ZerosLikeOp(Op):
 
     def infer_shape(self, node, input_shapes):
         """If input_shape is a vector, simpler to return (1,)"""
-        return (1,)
+        return input_shapes[0]
 
     def compiled_func(self, node, input_shapes, tgt, tgt_host):
         return None
@@ -452,10 +452,10 @@ class SoftmaxCrossEntropyOp(Op):
         return [grad_A, grad_B]
 
     def infer_shape(self, node, input_shapes):
-        return input_shapes[0]
+        return (1,)
 
     def compiled_func(self, node, input_shapes, tgt, tgt_host):
-        tvm_op.make_matrix_softmax_cross_entropy(
+        return tvm_op.make_matrix_softmax_cross_entropy(
             input_shapes[0], tgt, tgt_host, "softmax_cross_entropy")
 
 
@@ -479,7 +479,7 @@ class SoftmaxOp(Op):
         return input_shapes[0]
 
     def compiled_func(self, node, input_shapes, tgt, tgt_host):
-        tvm_op.make_matrix_softmax(
+        return tvm_op.make_matrix_softmax(
             input_shapes[0], tgt, tgt_host, "soft_max")
 
 

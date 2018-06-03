@@ -114,6 +114,8 @@ def make_matrix_mul(shapeA, transposeA, shapeB, transposeB, tgt, tgt_host,
                              lambda i, j: tvm.sum(trans_a[i, k] * B[j, k], axis=k))
 
     s = tvm.create_schedule(matmul.op)
+    # print code
+    # print(tvm.lower())
     f = tvm.build(s, [A, B, matmul], tgt, target_host=tgt_host, name=func_name)
     return f
 
