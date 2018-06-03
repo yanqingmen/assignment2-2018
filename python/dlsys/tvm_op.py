@@ -71,28 +71,65 @@ def make_relu_gradient(shape, tgt, tgt_host, func_name, dtype="float32"):
     C = tvm.compute(A.shape, lambda *i: B(*i) * tvm.select(A(*i) > 0, 1, 0))
 
     s = tvm.create_schedule(C.op)
-    f= tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name=func_name)
+    f = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name=func_name)
     return f
 
 
 def make_matrix_mul(shapeA, transposeA, shapeB, transposeB, tgt, tgt_host,
                     func_name, dtype="float32"):
-    """TODO: Your code here"""
-    """Hint: use tvm.reduce_axis, tvm.sum"""
     """Hint: treat 4 cases of transposeA, transposeB separately"""
     """Hint: for tvm schedule, use split, reorder, vectorize, parallel"""
     """Hint: debug tvm schedule using tvm.lower"""
+    assert len(shapeA) == 2 and len(shapeB) == 2
+    A = tvm.placeholder(shapeA, dtype=dtype, name="A")
+    B = tvm.placeholder(shapeB, dtype=dtype, name="B")
+
+    if not transposeA and not transposeB:
+        in_a, out_a = shapeA
+        in_b, out_b = shapeB
+        k = tvm.reduce_axis((0, out_a), name='k')
+        trans_b = topi.transpose(B)
+        matmul = tvm.compute((in_a, out_b),
+                             lambda i, j: tvm.sum(A[i, k] * trans_b[j, k], axis=k))
+    elif transposeA and not transposeB:
+        out_a, in_a = shapeA
+        in_b, out_b = shapeB
+        k = tvm.reduce_axis((0, out_a), name='k')
+        trans_a = topi.transpose(A)
+        trans_b = topi.transpose(B)
+        matmul = tvm.compute((in_a, out_b),
+                             lambda i, j: tvm.sum(trans_a[i, k] * trans_b[j, k], axis=k))
+    elif not transposeA and transposeB:
+        in_a, out_a = shapeA
+        out_b, in_b = shapeB
+        k = tvm.reduce_axis((0, out_a), name='k')
+        matmul = tvm.compute((in_a, out_b),
+                             lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k))
+    elif transposeA and transposeB:
+        out_a, in_a = shapeA
+        out_b, in_b = shapeB
+        k = tvm.reduce_axis((0, out_a), name='k')
+        trans_a = topi.transpose(A)
+        matmul = tvm.compute((in_a, out_b),
+                             lambda i, j: tvm.sum(trans_a[i, k] * B[j, k], axis=k))
+
+    s = tvm.create_schedule(matmul.op)
+    f = tvm.build(s, [A, B, matmul], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_conv2d(shapeX, shapeF, tgt, tgt_host, func_name, dtype="float32"):
     assert(shapeX[1] == shapeF[1])
-    N, C, H, W = shapeX
-    M, C, R, S = shapeF
-    """TODO: Your code here"""
     """Hint: use tvm.reduce_axis, tvm.sum"""
     """Hint: go by conv2d definition. Treat stride=1, padding=0 case only."""
     """For a challenge, treat the general case for stride and padding."""
+    A = tvm.placeholder(shapeX, dtype=dtype, name="A")
+    conv = tvm.placeholder(shapeF, dtype=dtype, name="conv")
+    C = topi.nn.conv2d(A, conv, 1, 0)
 
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, conv, C], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_matrix_softmax(shape, tgt, tgt_host, func_name, dtype="float32"):

@@ -280,10 +280,16 @@ class MatMulOp(Op):
         input_shape0 = input_shapes[0]
         input_shape1 = input_shapes[1]
         if node.matmul_attr_trans_A is True:
-            input_shape0 = reversed(input_shape0)
+            out_shape0, in_shape0 = input_shape0
+        else:
+            in_shape0, out_shape0 = input_shape0
+
         if node.matmul_attr_trans_B is True:
-            input_shape1 = reversed(input_shape1)
-        return tensor_mult_shape_infer((input_shape0, input_shape1))
+            out_shape1, in_shape1 = input_shape1
+        else:
+            in_shape1, out_shape1 = input_shape1
+
+        return in_shape0, out_shape1
 
     def compiled_func(self, node, input_shapes, tgt, tgt_host):
         return tvm_op.make_matrix_mul(
@@ -582,7 +588,7 @@ class Executor(object):
 
             input_nodes = node.inputs
             input_shapes = [self.node_to_shape_map[input_node] for input_node in input_nodes]
-            shape = node.infer_shape(node, input_shapes)
+            shape = node.op.infer_shape(node, input_shapes)
             self.node_to_shape_map[node] = shape
 
     def memory_plan(self, feed_shapes):
@@ -604,7 +610,7 @@ class Executor(object):
                 continue
 
             node_shape = self.node_to_shape_map[node]
-            node_array = tvm.nd.array(np.zeros(node_shape))
+            node_array = tvm.nd.array(np.zeros(node_shape, dtype=np.float32))
             self.node_to_arr_map[node] = node_array
 
 
@@ -627,8 +633,8 @@ class Executor(object):
             input_shapes = [self.node_to_shape_map[input_node]
                             for input_node in input_nodes]
 
-            node_func = node.compiled_func(node, input_shapes,
-                                           self.tgt, self.tgt_host)
+            node_func = node.op.compiled_func(node, input_shapes,
+                                              self.tgt, self.tgt_host)
             self.node_to_compiled_func[node] = node_func
 
     def run(self, feed_dict, convert_to_numpy_ret_vals=False):
