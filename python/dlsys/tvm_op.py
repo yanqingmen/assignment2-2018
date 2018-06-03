@@ -24,25 +24,55 @@ def make_elemwise_add(shape, tgt, tgt_host, func_name, dtype="float32"):
 
 
 def make_elemwise_mul(shape, tgt, tgt_host, func_name, dtype="float32"):
-    """TODO: Your code here"""
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    B = tvm.placeholder(shape, dtype=dtype, name="B")
+    C = tvm.compute(A.shape, lambda *i: A(*i) * B(*i))
+
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name=func_name)
+    return f
+
 
 def make_elemwise_add_by_const(shape, const_k, tgt, tgt_host, func_name,
                                dtype="float32"):
-    """TODO: Your code here"""
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    C = tvm.compute(A.shape, lambda *i: A(*i) + const_k)
+
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, C], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_elemwise_mul_by_const(shape, const_k, tgt, tgt_host, func_name,
                             dtype="float32"):
-    """TODO: Your code here"""
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    C = tvm.compute(A.shape, lambda *i: A(*i) * const_k)
+
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, C], tgt, target_host=tgt_host, name=func_name)
+    return f
+
 
 def make_relu(shape, tgt, tgt_host, func_name, dtype="float32"):
-    """TODO: Your code here"""
     """Hint: use tvm.max, tvm.const(0, A.dtype)"""
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    B = tvm.const(0, A.dtype)
+    C = tvm.compute(A.shape, lambda *i: tvm.max(A(*i), B))
+
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, C], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_relu_gradient(shape, tgt, tgt_host, func_name, dtype="float32"):
-    """TODO: Your code here"""
     """Hint: use tvm.select"""
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    B = tvm.placeholder(shape, dtype=dtype, name="B")
+    C = tvm.compute(A.shape, lambda *i: B(*i) * tvm.select(A(*i) > 0, 1, 0))
+
+    s = tvm.create_schedule(C.op)
+    f= tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_matrix_mul(shapeA, transposeA, shapeB, transposeB, tgt, tgt_host,
@@ -58,26 +88,37 @@ def make_conv2d(shapeX, shapeF, tgt, tgt_host, func_name, dtype="float32"):
     assert(shapeX[1] == shapeF[1])
     N, C, H, W = shapeX
     M, C, R, S = shapeF
-
     """TODO: Your code here"""
     """Hint: use tvm.reduce_axis, tvm.sum"""
     """Hint: go by conv2d definition. Treat stride=1, padding=0 case only."""
     """For a challenge, treat the general case for stride and padding."""
 
-def make_matrix_softmax(shape, tgt, tgt_host, func_name, dtype="float32"):
 
-    """TODO: Your code here"""
+
+def make_matrix_softmax(shape, tgt, tgt_host, func_name, dtype="float32"):
     """Hint: use tvm.reduce_axis, tvm.sum, tvm.max, tvm.exp"""
     """Hint: do not reuse the same reduction axis j."""
     """Hint: implement the following version for better stability
         e_x = np.exp(x - np.max(x))
         softmax(x)= e_x / e_x.sum()
     """
+    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    C = topi.nn.softmax(A, axis=1)
+    s = tvm.create_schedule(C.op)
+    f = tvm.build(s, [A, C], tgt, target_host=tgt_host, name=func_name)
+    return f
+
 
 def make_matrix_softmax_cross_entropy(shape, tgt, tgt_host, func_name,
                                       dtype="float32"):
-    """TODO: Your code here"""
     """Hint: output shape should be (1,)"""
+    y = tvm.placeholder(shape, dtype=dtype, name="y")
+    y_ = tvm.placeholder(shape, dtype=dtype, name="y_")
+    t = -topi.sum(y_ * topi.log(topi.nn.softmax(y)), axis=1)
+    c = topi.sum(t, keepdims=True)/shape[0]
+    s = tvm.create_schedule(c.op)
+    f = tvm.build(s, [y, y_, c], tgt, target_host=tgt_host, name=func_name)
+    return f
 
 
 def make_reduce_sum_axis_zero(shape, tgt, tgt_host, func_name, dtype="float32"):
