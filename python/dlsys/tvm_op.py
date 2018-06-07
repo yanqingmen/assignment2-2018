@@ -3,6 +3,10 @@ from __future__ import absolute_import, print_function
 import tvm
 import numpy as np
 import topi
+import logging
+
+FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
+logging.basicConfig(format=FORMAT, level=logging.INFO)
 
 # Global declarations of environment.
 
@@ -114,8 +118,20 @@ def make_matrix_mul(shapeA, transposeA, shapeB, transposeB, tgt, tgt_host,
                              lambda i, j: tvm.sum(trans_a[i, k] * B[j, k], axis=k))
 
     s = tvm.create_schedule(matmul.op)
-    # print code
-    # print(tvm.lower())
+
+    # Blocking by loop tiling
+    bn = 32
+    xo, yo, xi, yi = s[matmul].tile(matmul.op.axis[0], matmul.op.axis[1], bn, bn)
+    k, = s[matmul].op.reduce_axis
+    ko, ki = s[matmul].split(k, factor=4)
+
+    # Hoist reduction domain outside the blocking loop
+    s[matmul].reorder(xo, yo, ko, ki, xi, yi)
+
+    # Vectorization
+    s[matmul].vectorize(yi)
+
+    # logging.info(tvm.lower(s, [A, B, matmul], simple_mode=True))
     f = tvm.build(s, [A, B, matmul], tgt, target_host=tgt_host, name=func_name)
     return f
 
