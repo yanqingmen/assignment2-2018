@@ -130,6 +130,7 @@ def make_matrix_mul(shapeA, transposeA, shapeB, transposeB, tgt, tgt_host,
 
     # Vectorization
     s[matmul].vectorize(yi)
+    s[matmul].parallel(xo)
 
     # logging.info(tvm.lower(s, [A, B, matmul], simple_mode=True))
     f = tvm.build(s, [A, B, matmul], tgt, target_host=tgt_host, name=func_name)
